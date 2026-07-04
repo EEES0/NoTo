@@ -81,50 +81,53 @@ def delete_material(
         }
 @router.post("/materials")
 async def create_material(
-        file: UploadFile = File(...),
-        db: Session = Depends(get_db)
-    ):
-        UPLOAD_DIR.mkdir(exist_ok=True)
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    UPLOAD_DIR.mkdir(exist_ok=True)
 
-        extension = Path(file.filename).suffix.lower()
-        if extension not in SUPPORTED_EXTENSIONS:
-            raise HTTPException(
-                status_code=400,
-                detail="Only mp3, wav, and m4a files are supported"
-            )
+    extension = Path(file.filename).suffix.lower()
+    if extension not in SUPPORTED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Only mp3, wav, and m4a files are supported"
+        )
 
-        saved_filename = f"{uuid.uuid4()}{extension}"
-        file_path = UPLOAD_DIR / saved_filename
+    saved_filename = f"{uuid.uuid4()}{extension}"
+    file_path = UPLOAD_DIR / saved_filename
+
+    try:
+        with file_path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        transcript = transcribe(str(file_path))
 
         try:
-            with file_path.open("wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-
-            transcript = transcribe(str(file_path))
             refined_transcript = refine_text(transcript)
+        except Exception:
+            refined_transcript = None
 
-            material = Material(
-                original_filename=file.filename,
-                saved_filename=saved_filename,
-                transcript=transcript,
-                refined_transcript=refined_transcript
-            )
+        material = Material(
+            original_filename=file.filename,
+            saved_filename=saved_filename,
+            transcript=transcript,
+            refined_transcript=refined_transcript
+        )
 
-            db.add(material)
-            db.commit()
-            db.refresh(material)
+        db.add(material)
+        db.commit()
+        db.refresh(material)
 
-        finally:
-            await file.close()
-            if file_path.exists():
-                file_path.unlink()
+    finally:
+        await file.close()
+        if file_path.exists():
+            file_path.unlink()
 
-        return {
-            "id": material.id,
-            "transcript": material.transcript,
-            "refined_transcript": material.refined_transcript,
-        }
-
+    return {
+        "id": material.id,
+        "transcript": material.transcript,
+        "refined_transcript": material.refined_transcript,
+    }
 @router.post("/materials/{material_id}/summary")
 def create_summary(
     material_id: int,
