@@ -27,7 +27,7 @@ client = genai.Client(
 
 def refine_text(text: str) -> str:
     prompt = f"""
-다음은 강의를 STT로 변환한 텍스트입니다.
+STT로 변환한 텍스트입니다.
 
 목표:
 - 맞춤법과 띄어쓰기를 수정합니다.
@@ -54,7 +54,7 @@ def refine_text(text: str) -> str:
 
 def summarize_text(text: str) -> str:
     prompt = f"""
-다음은 강의를 교정한 텍스트입니다.
+다음은 STT 변환 텍스트를 교정한 것입니다.
 
 규칙
 - 텍스트가 너무 짧다면 요약하지 않고 그대로 반환합니다.
