@@ -363,6 +363,11 @@ h1 {
 }
 
 @media (max-width: 720px) {
+  h1,
+  h2,
+  h3 {
+  color: #ffffff;
+  }
   .container {
     padding: 16px;
   }
