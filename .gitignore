@@ -7,7 +7,12 @@ NoTo.db
 uploads/
 
 node_modules/
+.npm-cache/
 dist/
 dist-*/
 *.local
 *.log
+.env
+.env.*
+!.env.example
+.vscode/

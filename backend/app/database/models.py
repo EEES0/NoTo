@@ -29,6 +29,16 @@ class Material(Base):
         nullable=False
     )
 
+    refined_transcript: Mapped[str] = mapped_column(
+        Text,
+        nullable=False
+    )
+    
+    summary: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow

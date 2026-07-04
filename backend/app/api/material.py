@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.database.database import get_db
 from app.database.models import Material
 from app.service.whisper_service import transcribe
+from app.service.gemini_service import refine_text, summarize_text
 import uuid
 import shutil
 
@@ -16,13 +17,15 @@ SUPPORTED_EXTENSIONS = {".mp3", ".wav", ".m4a"}
 @router.get("/materials")
 def get_materials(db: Session = Depends(get_db)):
 
-    materials = db.query(Material).all()
+    materials = db.query(Material).order_by(Material.created_at.desc()).all()
 
     return [
         {
             "id": material.id,
             "filename": material.original_filename,
             "transcript": material.transcript,
+            "refined_transcript": material.refined_transcript,
+            "summary": material.summary,
             "created_at": material.created_at
         }
         for material in materials
@@ -48,6 +51,8 @@ def get_material(
             "id": material.id,
             "original_filename": material.original_filename,
             "transcript": material.transcript,
+            "refined_transcript": material.refined_transcript,
+            "summary": material.summary,
             "created_at": material.created_at
         }
 @router.delete("/materials/{material_id}")
@@ -96,11 +101,13 @@ async def create_material(
                 shutil.copyfileobj(file.file, buffer)
 
             transcript = transcribe(str(file_path))
+            refined_transcript = refine_text(transcript)
 
             material = Material(
                 original_filename=file.filename,
                 saved_filename=saved_filename,
-                transcript=transcript
+                transcript=transcript,
+                refined_transcript=refined_transcript
             )
 
             db.add(material)
@@ -114,5 +121,36 @@ async def create_material(
 
         return {
             "id": material.id,
-            "transcript": material.transcript
+            "transcript": material.transcript,
+            "refined_transcript": material.refined_transcript,
         }
+
+@router.post("/materials/{material_id}/summary")
+def create_summary(
+    material_id: int,
+    db: Session = Depends(get_db)
+): 
+    material = (
+        db.query(Material)
+        .filter(Material.id == material_id)
+        .first()
+    )
+
+    if material is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Material not found"
+        )
+    if material.summary:
+        return {
+            "summary": material.summary
+        }
+    summary = summarize_text(material.refined_transcript or material.transcript)
+    material.summary = summary
+    db.commit()
+    db.refresh(material)
+
+    return {
+        "message": "Summary created successfully",
+        "summary": material.summary
+    }
