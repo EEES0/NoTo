@@ -3,7 +3,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from sqlalchemy.orm import Session
 from app.database.database import get_db
-from app.database.models import Material
+from app.database.models import Material, User
+from app.api.auth import get_current_user
 from app.service.whisper_service import transcribe
 from app.service.gemini_service import refine_text, summarize_text
 import uuid
@@ -15,9 +16,17 @@ UPLOAD_DIR = BASE_DIR / "uploads"
 SUPPORTED_EXTENSIONS = {".mp3", ".wav", ".m4a"}
 
 @router.get("/materials")
-def get_materials(db: Session = Depends(get_db)):
+def get_materials(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
 
-    materials = db.query(Material).order_by(Material.created_at.desc()).all()
+    materials = (
+        db.query(Material)
+        .filter(Material.user_id == current_user.id)
+        .order_by(Material.created_at.desc())
+        .all()
+    )
 
     return [
         {
@@ -33,11 +42,15 @@ def get_materials(db: Session = Depends(get_db)):
 @router.get("/materials/{material_id}")
 def get_material(
         material_id: int,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
     ):
         material = (
             db.query(Material)
-            .filter(Material.id == material_id)
+            .filter(
+                Material.id == material_id,
+                Material.user_id == current_user.id
+            )
             .first()
         )
 
@@ -58,12 +71,16 @@ def get_material(
 @router.delete("/materials/{material_id}")
 def delete_material(
         material_id: int,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
     ):
 
         material = (
             db.query(Material)
-            .filter(Material.id == material_id)
+            .filter(
+                Material.id == material_id,
+                Material.user_id == current_user.id
+            )
             .first()
         )
 
@@ -82,7 +99,8 @@ def delete_material(
 @router.post("/materials")
 async def create_material(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     UPLOAD_DIR.mkdir(exist_ok=True)
 
@@ -108,6 +126,7 @@ async def create_material(
             refined_transcript = None
 
         material = Material(
+            user_id=current_user.id,
             original_filename=file.filename,
             saved_filename=saved_filename,
             transcript=transcript,
@@ -131,11 +150,15 @@ async def create_material(
 @router.post("/materials/{material_id}/summary")
 def create_summary(
     material_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ): 
     material = (
         db.query(Material)
-        .filter(Material.id == material_id)
+        .filter(
+            Material.id == material_id,
+            Material.user_id == current_user.id
+        )
         .first()
     )
 
