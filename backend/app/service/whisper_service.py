@@ -1,10 +1,10 @@
 import os
+import subprocess
 import tempfile
 from pathlib import Path
 
 from dotenv import load_dotenv
 from openai import OpenAI
-from pydub import AudioSegment
 
 load_dotenv()
 
@@ -14,7 +14,7 @@ client = OpenAI(
 
 MAX_OPENAI_FILE_SIZE = 25 * 1024 * 1024
 SAFE_CHUNK_FILE_SIZE = 20 * 1024 * 1024
-MIN_CHUNK_LENGTH_MS = 30 * 1000
+DEFAULT_CHUNK_SECONDS = 10 * 60
 
 
 def transcribe(audio_path: str) -> str:
@@ -39,10 +39,9 @@ def transcribe_one_file(audio_path: str) -> str:
 def transcribe_large_file(audio_path: str) -> str:
     with tempfile.TemporaryDirectory() as temp_dir:
         chunk_paths = split_audio(audio_path, temp_dir)
-
         transcripts = []
 
-        for index, chunk_path in enumerate(chunk_paths, start=1):
+        for chunk_path in chunk_paths:
             chunk_text = transcribe_one_file(str(chunk_path))
             transcripts.append(chunk_text)
 
@@ -50,69 +49,89 @@ def transcribe_large_file(audio_path: str) -> str:
 
 
 def split_audio(audio_path: str, output_dir: str) -> list[Path]:
-    audio = AudioSegment.from_file(audio_path)
-
-    chunk_length_ms = calculate_chunk_length_ms(audio_path, audio)
-
+    duration_seconds = get_audio_duration_seconds(audio_path)
     chunk_paths = []
-
-    start_ms = 0
+    start_seconds = 0.0
     chunk_index = 1
 
-    while start_ms < len(audio):
-        end_ms = min(start_ms + chunk_length_ms, len(audio))
-
+    while start_seconds < duration_seconds:
         chunk_path = Path(output_dir) / f"chunk_{chunk_index:03d}.mp3"
+        chunk_seconds = min(
+            DEFAULT_CHUNK_SECONDS,
+            duration_seconds - start_seconds,
+        )
 
-        export_chunk_under_limit(
-            audio=audio,
-            start_ms=start_ms,
-            end_ms=end_ms,
+        chunk_seconds = export_chunk_under_limit(
+            audio_path=audio_path,
+            start_seconds=start_seconds,
+            chunk_seconds=chunk_seconds,
             chunk_path=chunk_path,
         )
 
         chunk_paths.append(chunk_path)
-
-        start_ms = end_ms
+        start_seconds += chunk_seconds
         chunk_index += 1
 
     return chunk_paths
 
 
-def calculate_chunk_length_ms(audio_path: str, audio: AudioSegment) -> int:
-    original_file_size = os.path.getsize(audio_path)
+def get_audio_duration_seconds(audio_path: str) -> float:
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            audio_path,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
-    if original_file_size <= SAFE_CHUNK_FILE_SIZE:
-        return len(audio)
-
-    size_ratio = SAFE_CHUNK_FILE_SIZE / original_file_size
-
-    estimated_chunk_length_ms = int(len(audio) * size_ratio * 0.9)
-
-    return max(estimated_chunk_length_ms, MIN_CHUNK_LENGTH_MS)
+    return float(result.stdout.strip())
 
 
 def export_chunk_under_limit(
-    audio: AudioSegment,
-    start_ms: int,
-    end_ms: int,
+    audio_path: str,
+    start_seconds: float,
+    chunk_seconds: float,
     chunk_path: Path,
-) -> None:
-    current_end_ms = end_ms
+) -> float:
+    current_chunk_seconds = chunk_seconds
 
     while True:
-        chunk = audio[start_ms:current_end_ms]
-
-        chunk.export(
-            chunk_path,
-            format="mp3",
-            bitrate="64k",
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-ss",
+                str(start_seconds),
+                "-t",
+                str(current_chunk_seconds),
+                "-i",
+                audio_path,
+                "-vn",
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-b:a",
+                "64k",
+                str(chunk_path),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
         )
 
         if os.path.getsize(chunk_path) <= SAFE_CHUNK_FILE_SIZE:
-            return
+            return current_chunk_seconds
 
-        current_end_ms = start_ms + int((current_end_ms - start_ms) * 0.8)
+        current_chunk_seconds *= 0.8
 
-        if current_end_ms - start_ms < MIN_CHUNK_LENGTH_MS:
+        if current_chunk_seconds < 1:
             raise ValueError("Audio chunk is still too large after reducing its length.")
