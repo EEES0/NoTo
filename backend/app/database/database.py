@@ -1,22 +1,26 @@
-from pathlib import Path
+import os
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-DATABASE_URL = f"sqlite:///{(BASE_DIR / 'NoTo.db').as_posix()}"
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL is None:
+    raise ValueError("DATABASE_URL 환경변수가 설정되지 않았습니다.")
 
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False}
+    pool_pre_ping=True,
 )
 
 SessionLocal = sessionmaker(
-    autoflush=False,
     autocommit=False,
-    bind=engine
+    autoflush=False,
+    bind=engine,
 )
-
 
 class Base(DeclarativeBase):
     pass
@@ -24,6 +28,7 @@ class Base(DeclarativeBase):
 
 def get_db():
     db = SessionLocal()
+
     try:
         yield db
     finally:
