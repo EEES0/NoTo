@@ -117,9 +117,11 @@ def get_all_materials(
             "user_id": user.id,
             "user_email": user.email,
             "filename": material.original_filename,
+            "status": material.status,
             "transcript": material.transcript,
             "refined_transcript": material.refined_transcript,
             "summary": material.summary,
+            "error_message": material.error_message,
             "created_at": material.created_at,
         }
         for material, user in materials

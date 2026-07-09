@@ -52,9 +52,15 @@ class Material(Base):
         nullable=False
     )
 
-    transcript: Mapped[str] = mapped_column(
-        Text,
+    status: Mapped[str] = mapped_column(
+        String(32),
+        default="done",
         nullable=False
+    )
+
+    transcript: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
     )
 
     refined_transcript: Mapped[str] = mapped_column(
@@ -63,6 +69,11 @@ class Material(Base):
     )
 
     summary: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+    error_message: Mapped[str | None] = mapped_column(
         Text,
         nullable=True
     )

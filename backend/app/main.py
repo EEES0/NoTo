@@ -67,6 +67,33 @@ def ensure_database_schema():
                 text("ALTER TABLE materials ADD COLUMN user_id INTEGER")
             )
 
+    if "status" not in material_columns:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE materials "
+                    "ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'done'"
+                )
+            )
+
+    if "error_message" not in material_columns:
+        with engine.begin() as connection:
+            connection.execute(
+                text("ALTER TABLE materials ADD COLUMN error_message TEXT")
+            )
+
+    transcript_column = next(
+        column
+        for column in inspector.get_columns("materials")
+        if column["name"] == "transcript"
+    )
+
+    if not transcript_column["nullable"] and engine.dialect.name == "postgresql":
+        with engine.begin() as connection:
+            connection.execute(
+                text("ALTER TABLE materials ALTER COLUMN transcript DROP NOT NULL")
+            )
+
 
 Base.metadata.create_all(bind=engine)
 ensure_database_schema()

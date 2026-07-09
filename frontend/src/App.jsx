@@ -6,6 +6,7 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 const TOKEN_STORAGE_KEY = "noto_access_token";
 const USER_STORAGE_KEY = "noto_user";
+const UPLOAD_CHUNK_SIZE = 5 * 1024 * 1024;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -42,6 +43,8 @@ function App() {
   const [activeView, setActiveView] = useState("refined");
   const [appView, setAppView] = useState("materials");
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [refineLoading, setRefineLoading] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -65,6 +68,14 @@ function App() {
   const activeText = useMemo(() => {
     if (!selectedMaterial) {
       return "";
+    }
+
+    if (selectedMaterial.status === "processing") {
+      return "변환을 처리하는 중입니다. 잠시 후 자동으로 결과가 표시됩니다.";
+    }
+
+    if (selectedMaterial.status === "failed") {
+      return selectedMaterial.error_message || "변환에 실패했습니다.";
     }
 
     if (activeView === "summary") {
@@ -98,6 +109,7 @@ function App() {
     setAppView("materials");
     setErrorMessage("");
     setAdminError("");
+    setUploadProgress(0);
   };
 
   const handleAuthFailure = (error, fallback) => {
@@ -224,6 +236,49 @@ function App() {
     };
   }, [token]);
 
+  useEffect(() => {
+    if (!token || !materials.some((material) => material.status === "processing")) {
+      return;
+    }
+
+    const intervalId = window.setInterval(async () => {
+      const processingMaterials = materials.filter(
+        (material) => material.status === "processing"
+      );
+
+      try {
+        const responses = await Promise.all(
+          processingMaterials.map((material) =>
+            api.get(`/materials/${material.id}/status`, authConfig)
+          )
+        );
+        const updatedById = new Map(
+          responses.map((response) => [response.data.id, response.data])
+        );
+
+        setMaterials((currentMaterials) =>
+          currentMaterials.map((material) =>
+            updatedById.get(material.id) || material
+          )
+        );
+
+        setSelectedMaterial((currentMaterial) => {
+          if (!currentMaterial) {
+            return currentMaterial;
+          }
+
+          return updatedById.get(currentMaterial.id) || currentMaterial;
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    }, 3000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [authConfig, materials, token]);
+
   const handleAuthInputChange = (event) => {
     const { name, value } = event.target;
     setAuthForm((currentForm) => ({
@@ -293,21 +348,49 @@ function App() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-
     try {
       setLoading(true);
       setErrorMessage("");
-      const response = await api.post("/materials", formData, authConfig);
-      await fetchMaterials();
-      await fetchMaterial(response.data.id);
+      setUploadProgress(0);
+
+      const totalChunks = Math.ceil(selectedFile.size / UPLOAD_CHUNK_SIZE);
+      const initResponse = await api.post(
+        "/materials/uploads/init",
+        {
+          filename: selectedFile.name,
+          total_chunks: totalChunks,
+        },
+        authConfig
+      );
+      const uploadId = initResponse.data.upload_id;
+
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
+        const start = chunkIndex * UPLOAD_CHUNK_SIZE;
+        const end = Math.min(start + UPLOAD_CHUNK_SIZE, selectedFile.size);
+        const chunk = selectedFile.slice(start, end);
+        const formData = new FormData();
+        formData.append("chunk_index", String(chunkIndex));
+        formData.append("file", chunk, selectedFile.name);
+
+        await api.post(`/materials/uploads/${uploadId}/chunks`, formData, authConfig);
+        setUploadProgress(Math.round(((chunkIndex + 1) / totalChunks) * 100));
+      }
+
+      const response = await api.post(
+        `/materials/uploads/${uploadId}/complete`,
+        null,
+        authConfig
+      );
+      setMaterials((currentMaterials) => [response.data, ...currentMaterials]);
+      setSelectedMaterial(response.data);
+      setActiveView("original");
       setSelectedFile(null);
     } catch (error) {
       console.error(error);
       handleAuthFailure(error, "STT 변환 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -331,6 +414,11 @@ function App() {
 
   const handleCreateSummary = async () => {
     if (!selectedMaterial) {
+      return;
+    }
+
+    if (selectedMaterial.status !== "done") {
+      setErrorMessage("변환이 끝난 뒤 요약을 만들 수 있습니다.");
       return;
     }
 
@@ -359,6 +447,44 @@ function App() {
       handleAuthFailure(error, "요약을 생성하지 못했습니다.");
     } finally {
       setSummaryLoading(false);
+    }
+  };
+
+  const handleCreateRefined = async () => {
+    if (!selectedMaterial) {
+      return;
+    }
+
+    if (selectedMaterial.status !== "done") {
+      setErrorMessage("변환이 끝난 뒤 정리본을 만들 수 있습니다.");
+      return;
+    }
+
+    try {
+      setRefineLoading(true);
+      setErrorMessage("");
+      const response = await api.post(
+        `/materials/${selectedMaterial.id}/refine`,
+        null,
+        authConfig
+      );
+      const updatedMaterial = {
+        ...selectedMaterial,
+        refined_transcript: response.data.refined_transcript,
+      };
+
+      setSelectedMaterial(updatedMaterial);
+      setMaterials((currentMaterials) =>
+        currentMaterials.map((material) =>
+          material.id === updatedMaterial.id ? updatedMaterial : material
+        )
+      );
+      setActiveView("refined");
+    } catch (error) {
+      console.error(error);
+      handleAuthFailure(error, "정리본을 생성하지 못했습니다.");
+    } finally {
+      setRefineLoading(false);
     }
   };
 
@@ -628,7 +754,11 @@ function App() {
             {selectedFile && (
               <div className="selected-file">
                 <span>{selectedFile.name}</span>
-                <span>{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</span>
+                <span>
+                  {loading
+                    ? `${uploadProgress}%`
+                    : `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`}
+                </span>
               </div>
             )}
 
@@ -661,7 +791,13 @@ function App() {
                       onClick={() => fetchMaterial(material.id)}
                     >
                       <span>{material.filename || material.original_filename}</span>
-                      <small>{formatDate(material.created_at)}</small>
+                      <small>
+                        {material.status === "processing"
+                          ? "처리 중"
+                          : material.status === "failed"
+                            ? "실패"
+                            : formatDate(material.created_at)}
+                      </small>
                     </button>
                     <button
                       className="delete-button"
@@ -680,8 +816,21 @@ function App() {
                 {selectedMaterial && (
                   <button
                     className="secondary-button"
+                    onClick={handleCreateRefined}
+                    disabled={
+                      refineLoading ||
+                      selectedMaterial.status !== "done" ||
+                      Boolean(selectedMaterial.refined_transcript)
+                    }
+                  >
+                    {refineLoading ? "정리 중..." : "정리본 생성"}
+                  </button>
+                )}
+                {selectedMaterial && (
+                  <button
+                    className="secondary-button"
                     onClick={handleCreateSummary}
-                    disabled={summaryLoading}
+                    disabled={summaryLoading || selectedMaterial.status !== "done"}
                   >
                     {summaryLoading ? "요약 중..." : "요약 생성"}
                   </button>
