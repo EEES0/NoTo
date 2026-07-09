@@ -24,7 +24,7 @@ def ensure_database_schema():
                 connection.execute(
                     text(
                         "ALTER TABLE users "
-                        "ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0"
+                        "ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT false"
                     )
                 )
 
@@ -37,18 +37,18 @@ def ensure_database_schema():
         with engine.begin() as connection:
             for email in admin_emails:
                 connection.execute(
-                    text("UPDATE users SET is_admin = 1 WHERE lower(email) = :email"),
+                    text("UPDATE users SET is_admin = true WHERE lower(email) = :email"),
                     {"email": email}
                 )
 
             admin_count = connection.execute(
-                text("SELECT COUNT(*) FROM users WHERE is_admin = 1")
+                text("SELECT COUNT(*) FROM users WHERE is_admin = true")
             ).scalar_one()
 
             if admin_count == 0:
                 connection.execute(
                     text(
-                        "UPDATE users SET is_admin = 1 "
+                        "UPDATE users SET is_admin = true "
                         "WHERE id = (SELECT id FROM users ORDER BY id ASC LIMIT 1)"
                     )
                 )
