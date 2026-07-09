@@ -12,7 +12,7 @@ function AuthView({
       <main className="auth-panel">
         <div className="auth-copy">
           <h1>NoTo</h1>
-          <p>강의 음성을 텍스트로 바꾸고 정리하는 개인 노트 공간입니다.</p>
+          <p>학습 지원 프로젝트</p>
         </div>
 
         <form className="auth-form" onSubmit={onAuthSubmit}>
