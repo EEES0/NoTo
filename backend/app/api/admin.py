@@ -1,13 +1,37 @@
+import os
+
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, update
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
-from app.database.database import get_db
+from app.database.database import SessionLocal, get_db
 from app.database.models import Material, User
 from app.schema.admin import AdminStatusRequest
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
+def initialize_admin_users(
+        db: Session = Depends(get_db),
+        user: User = Depends(get_current_user)
+) -> None:
+    admin_emails = [
+        email.strip().lower()
+        for email in os.getenv("ADMIN_EMAILS", "").split(",")
+        if email.strip()
+    ]
+
+    if not admin_emails:
+        return
+
+    with SessionLocal() as db:
+        db.execute(
+            update(User)
+            .where(func.lower(User.email).in_(admin_emails))
+            .values(is_admin=True)
+        )
+        db.commit()
+    
 
 def get_admin_user(current_user: User = Depends(get_current_user)):
     if not current_user.is_admin:

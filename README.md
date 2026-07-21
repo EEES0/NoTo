@@ -101,14 +101,17 @@ CORS_ORIGINS=
 
 # 문제 해결
 
-- 서버 재시작 시 DB 초기화
+  서버 재시작 시 DB 초기화
 - 원인 : SQL 및 데이터베이스 입문을 위해 SQLite 사용
 - 해결 : Render PostgreSQL 연동하여 서버 인스턴스와 분리
 
-- 대용량 파일 처리 불가
+  대용량 파일 처리 불가
 - 원인 : OpenAI Whisper 각 파일 25MB 크기 제한, Render 무료 서버 메모리 부담
 - 해결 : 프론트에서 파일 크기 검사 후 대용량 파일은 일정 크기의 청크로 나누어 서버 전달
-
+  
+  데이터베이스 스키마 변경시 ALTER TABLE 직접 실행
+- 원인 : alembic 없이 수동으로 ALTER TABLE
+- 해결 : alembic 붙여 migration 자동 관리
 
 #
 * GitHub: https://github.com/EEES0
