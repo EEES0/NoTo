@@ -78,13 +78,11 @@ def signup(
             detail="이미 존재하는 이메일입니다."
         )
 
-    is_first_user = db.query(User).count() == 0
-
     user = User(
         email=email,
         nickname=req.nickname,
         password=hash_password(req.password),
-        is_admin=is_first_user or email in get_admin_emails()
+        is_admin=email in get_admin_emails()
     )
 
     db.add(user)
