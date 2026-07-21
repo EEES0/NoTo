@@ -12,9 +12,6 @@ from app.schema.admin import AdminStatusRequest
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 def initialize_admin_users() -> None:
-    """앱 시작 시 ADMIN_EMAILS에 등록된 계정에 관리자 권한을 부여한다.
-    라우트 핸들러가 아니라 startup 훅에서 직접 호출되는 일반 함수이므로
-    FastAPI Depends를 파라미터로 두지 않는다."""
     admin_emails = [
         email.strip().lower()
         for email in os.getenv("ADMIN_EMAILS", "").split(",")

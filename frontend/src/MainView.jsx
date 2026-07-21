@@ -417,7 +417,7 @@ function MainView({ token, currentUser, onLogout, onSessionExpired }) {
           <div>
             <h1>NoTo</h1>
             <p className="subtitle">
-              {currentUser?.nickname}님의 강의 음성을 텍스트로 바꾸고 정리합니다.
+              {currentUser?.nickname}님, {isAdmin ? "관리자" : "사용자"}로 로그인했습니다.
             </p>
           </div>
           <div className="header-actions">
