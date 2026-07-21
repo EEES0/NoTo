@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from sqlalchemy import text
@@ -22,7 +23,13 @@ CORS_ORIGINS = [
     if origin.strip()
 ]
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    initialize_admin_users()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 app.include_router(router)
 app.include_router(auth_router)
 app.include_router(admin_router)
@@ -34,5 +41,3 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-initialize_admin_users()
