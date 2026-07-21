@@ -36,7 +36,7 @@ function MainView({ token, currentUser, onLogout, onSessionExpired }) {
     }
 
     if (selectedMaterial.status === "processing") {
-      return "변환 중입니다.";
+      return "변환 중입니다...";
     }
 
     if (selectedMaterial.status === "failed") {
