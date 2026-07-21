@@ -36,9 +36,7 @@ function MainView({ token, currentUser, onLogout, onSessionExpired }) {
     }
 
     if (selectedMaterial.status === "processing") {
-      return typeof selectedMaterial.progress === "number"
-        ? `변환을 처리하는 중입니다. (${selectedMaterial.progress}%) 잠시 후 자동으로 결과가 표시됩니다.`
-        : "변환을 처리하는 중입니다. 잠시 후 자동으로 결과가 표시됩니다.";
+      return "변환 중입니다.";
     }
 
     if (selectedMaterial.status === "failed") {
@@ -53,7 +51,7 @@ function MainView({ token, currentUser, onLogout, onSessionExpired }) {
       return selectedMaterial.transcript;
     }
 
-    return selectedMaterial.refined_transcript || selectedMaterial.transcript;
+    return selectedMaterial.refined_transcript || "아직 생성된 정리본이 없습니다.";
   }, [activeView, selectedMaterial]);
 
   const handleAuthFailure = useCallback((error, fallback) => {
