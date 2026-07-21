@@ -29,6 +29,11 @@ class ChunkUploadInitRequest(BaseModel):
 
 
 def serialize_material(material: Material):
+    progress = None
+
+    if material.total_chunks:
+        progress = round(material.completed_chunks / material.total_chunks * 100, 1)
+
     return {
         "id": material.id,
         "filename": material.original_filename,
@@ -39,6 +44,9 @@ def serialize_material(material: Material):
         "summary": material.summary,
         "error_message": material.error_message,
         "created_at": material.created_at,
+        "total_chunks": material.total_chunks,
+        "completed_chunks": material.completed_chunks,
+        "progress": progress,
     }
 
 
@@ -84,7 +92,12 @@ def process_material_file(material_id: int, file_path: str):
         if material is None:
             return
 
-        transcript = transcribe(str(path))
+        def update_progress(completed: int, total: int):
+            material.completed_chunks = completed
+            material.total_chunks = total
+            db.commit()
+
+        transcript = transcribe(str(path), on_progress=update_progress)
 
         material.transcript = transcript
         material.refined_transcript = None

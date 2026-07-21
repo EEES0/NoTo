@@ -348,9 +348,8 @@ h1 {
 .file-select {
   min-width: 0;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
+  flex-direction: column;
+  gap: 10px;
   padding: 18px 20px;
   border: 1px solid #2b2b2b;
   border-radius: 14px;
@@ -359,6 +358,29 @@ h1 {
   text-align: left;
   cursor: pointer;
   transition: .2s;
+}
+
+.file-select-row {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: #333333;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: #ffffff;
+  border-radius: 2px;
+  transition: width .3s ease;
 }
 
 .file-select:hover,

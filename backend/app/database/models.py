@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, String, Text, DateTime
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.database import Base
@@ -58,6 +58,16 @@ class Material(Base):
         nullable=False
     )
 
+    total_chunks: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True
+    )
+
+    completed_chunks: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True
+    )
+
     transcript: Mapped[str | None] = mapped_column(
         Text,
         nullable=True
@@ -80,5 +90,5 @@ class Material(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow
+        default=datetime.now
     )

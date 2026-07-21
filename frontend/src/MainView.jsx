@@ -36,7 +36,9 @@ function MainView({ token, currentUser, onLogout, onSessionExpired }) {
     }
 
     if (selectedMaterial.status === "processing") {
-      return "변환을 처리하는 중입니다. 잠시 후 자동으로 결과가 표시됩니다.";
+      return typeof selectedMaterial.progress === "number"
+        ? `변환을 처리하는 중입니다. (${selectedMaterial.progress}%) 잠시 후 자동으로 결과가 표시됩니다.`
+        : "변환을 처리하는 중입니다. 잠시 후 자동으로 결과가 표시됩니다.";
     }
 
     if (selectedMaterial.status === "failed") {
@@ -569,14 +571,27 @@ function MainView({ token, currentUser, onLogout, onSessionExpired }) {
                       className="file-select"
                       onClick={() => fetchMaterial(material.id)}
                     >
-                      <span>{material.filename || material.original_filename}</span>
-                      <small>
-                        {material.status === "processing"
-                          ? "처리 중"
-                          : material.status === "failed"
-                            ? "실패"
-                            : formatDate(material.created_at)}
-                      </small>
+                      <div className="file-select-row">
+                        <span>{material.filename || material.original_filename}</span>
+                        <small>
+                          {material.status === "processing"
+                            ? typeof material.progress === "number"
+                              ? `처리 중 ${material.progress}%`
+                              : "처리 중"
+                            : material.status === "failed"
+                              ? "실패"
+                              : formatDate(material.created_at)}
+                        </small>
+                      </div>
+                      {material.status === "processing" &&
+                        typeof material.progress === "number" && (
+                          <div className="progress-bar">
+                            <div
+                              className="progress-bar-fill"
+                              style={{ width: `${material.progress}%` }}
+                            />
+                          </div>
+                        )}
                     </button>
                     <button
                       className="delete-button"

@@ -17,13 +17,21 @@ SAFE_CHUNK_FILE_SIZE = 20 * 1024 * 1024
 DEFAULT_CHUNK_SECONDS = 10 * 60
 
 
-def transcribe(audio_path: str) -> str:
+def transcribe(audio_path: str, on_progress=None) -> str:
     audio_file_size = os.path.getsize(audio_path)
 
     if audio_file_size <= SAFE_CHUNK_FILE_SIZE:
-        return transcribe_one_file(audio_path)
+        if on_progress:
+            on_progress(0, 1)
 
-    return transcribe_large_file(audio_path)
+        text = transcribe_one_file(audio_path)
+
+        if on_progress:
+            on_progress(1, 1)
+
+        return text
+
+    return transcribe_large_file(audio_path, on_progress=on_progress)
 
 
 def transcribe_one_file(audio_path: str) -> str:
@@ -36,14 +44,21 @@ def transcribe_one_file(audio_path: str) -> str:
     return response.text.strip()
 
 
-def transcribe_large_file(audio_path: str) -> str:
+def transcribe_large_file(audio_path: str, on_progress=None) -> str:
     with tempfile.TemporaryDirectory() as temp_dir:
         chunk_paths = split_audio(audio_path, temp_dir)
+        total = len(chunk_paths)
         transcripts = []
 
-        for chunk_path in chunk_paths:
+        if on_progress:
+            on_progress(0, total)
+
+        for i, chunk_path in enumerate(chunk_paths):
             chunk_text = transcribe_one_file(str(chunk_path))
             transcripts.append(chunk_text)
+
+            if on_progress:
+                on_progress(i + 1, total)
 
         return "\n".join(transcripts)
 
